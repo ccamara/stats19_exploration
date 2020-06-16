@@ -1,0 +1,3 @@
+library("stats19")
+
+crashes = get_stats19(year = 2017, type = "accident", ask = FALSE)
