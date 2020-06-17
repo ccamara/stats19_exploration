@@ -26,7 +26,6 @@ total_acc18 <- total_acc18_fatal + total_acc18_serious + total_acc18_slight
 # Variables.
 color_total <- "#1F77B4"
 color_serious <- "#FF7F0E"
-color_uci <- "pink"
 color_slight <- "#2C9F2C"
 color_fatal <- "rgba(214, 39, 40, 1)"
 
