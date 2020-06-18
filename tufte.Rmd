@@ -7,7 +7,7 @@ output:
   tufte::tufte_html:
     tufte_variant: "envisioned"
     highlight: pygments
-    toc: true 
+    toc: false
     number_sections: true
   tufte::tufte_handout:
     citation_package: natbib
@@ -19,8 +19,30 @@ output:
   # link-citations: yes
 ---
 
-This is a mock report exploring data from UK Department for Transport's [STATS19](https://data.gov.uk/dataset/cb7ae6f0-4be6-4935-9277-47e5ce24a11f/road-safety-data) provided from [STATS19's R package](https://docs.ropensci.org/stats19/)[^stats19] made by someone who has never worked with that kind of dataset before. STATS19 provides three types of datasets: `accidents`, `vehicles` and `casualties`. 
+This is a mock report exploring data from UK Department for Transport's [STATS19](https://data.gov.uk/dataset/cb7ae6f0-4be6-4935-9277-47e5ce24a11f/road-safety-data) provided by [STATS19's R package](https://docs.ropensci.org/stats19/)[^stats19]. This report serves several purposes:
 
+1. to learn and understand what kind of data do the different datasets[^datasets] have,
+2. to identify possible research questions,
+3. to learn some new skills that I have never used before[^new-things],
+4. to showcase what I am capable of and increase my chances to get hired.
+
+[^datasets]: STATS19 provides three types of datasets: `accidents`, `casualties` and `vehicles`, although this report only analyses (for now) the first two due to time constraints.
+
+[^new-things]: As an example, I wanted to learn how to combine tables and visuals to make tables easier to read, experiment with `plotly` interactive charts instead of using my beloved `ggplot` and use mapillary API to get images from the roads where accidents took place.
+
+**Disclaimer:** This report has been made in 12 hours by someone who had never worked with that kind of dataset before. As a result, it has to be considered as a draft and it might contain mistakes in writing and hasty conclusions.
+
+**Table of contents:**
+    
+1. [Accidents 2018](#accidents-2018)
+    1. [Initial exploration](l#initial-exploration)
+    1. [Accidents’ evolution over time](#accidents-evolution-over-time)
+    1. [Accidents distribution by time](#accidents-distribution-by-time)
+    1. [Accidents’ spatial distribution](#accidents-spatial-distribution)
+2. [Casualties 2018](#casualties-2018)
+    2. [Initial exploration](#initial-exploration-1)
+    2. [Casualties’ demographics](#casualties-demographics)
+3. [Future actions and research](#future-actions-and-research)
 
 ```{r setup, include=FALSE}
 source("init.R")
@@ -82,20 +104,24 @@ The table above shows that overall we do not have significant missing data in an
 datatable(inspect_cat(accidents2018, show_plot = TRUE))
 ```
 
-The tables above pose interesting (basic) research questions to be explored. As an example, seeing that the day of the week were most accidents take place is Friday, I would like to know if most accidents happen during weekdays or weekend. We could use that data as a proxy to infer if professional drivers are more or less involved in accidents than amateurs, especially if we combine that with the hour of the day.
-
-Surprisingly, **most accidents take place on dry conditions with sunny days and good visibility**, so, apparently, weather does not have such as big impact as I might have guessed on the first sight, although verifying it would require further analysis.
+```{marginfigure}
+Possible research question here: *Are professional drivers more prone to suffer an accident?* 
+```
+The tables above pose interesting (basic) research questions to be explored. As an example, seeing that the day of the week were most accidents take place is Friday, I would like to know if most accidents happen during weekdays or weekend. 
 
 ```{marginfigure}
 Research quesion here: *Are weather and visibility conditions an important factor in  accidents?*
 ```
+
+Surprisingly, **most accidents take place on dry conditions with sunny days and good visibility**, so, apparently, weather does not have such as big impact as I might have guessed on the first sight, although verifying it would require further analysis.
+
 
 ## Accidents' evolution over time
 
 There have been a **total of `r format(as.numeric(total_acc18), big.mark=",")` accidents in 2018**, out of which a **`r round(total_acc18_fatal/total_acc18*100)`% were fatal**, **`r round(total_acc18_serious/total_acc18*100)`% were  serious**, and **`r round(total_acc18_slight/total_acc18*100)`% were slight**. However, let's see how these figures have been evolved through time and if there has been an increase or decrease on the number of accidents.
 
 
-```{r echo=FALSE, fig.margin=TRUE, fig.cap="Histogram from 2004 to 2018. Probably 2004 and 2009 introduced some changes in how data was gathered or the consideration of what an accident was."}
+```{r echo=FALSE, fig.margin=TRUE, fig.cap="**Same histogram, from 2004 to 2018.** Probably 2004 and 2009 introduced some changes in how data was gathered or the consideration of what an accident was."}
 summary_accidents_total <- read.csv("data/interim/summary_accidents.csv") %>% 
   select(-X)
 
@@ -113,7 +139,7 @@ ggplot(data = summary_accidents_total , aes(x = year)) +
   theme_minimal() 
 ```
 
-```{r echo=FALSE}
+```{r echo=FALSE, fig.cap="Histogram of accidents by type and year, from 2009 to 2018."}
 plot <- ggplot(data = summary_accidents, aes(x = year)) +
   geom_bar(aes(y = n, fill = accident_severity), position = "stack", stat = "identity") +
   labs(title = "Number of accidents by type and year",
@@ -168,12 +194,11 @@ formattable(summary_accidents_wide,
             ))
 ```
 
-
-
-
 As can be seen in the table above, total number of accidents has been decreasing over time and **2018 is the year with less total accidents since 2009**. This might seem good news (with plenty of room for improvement, provided that the accidents figures are still high), but we can also observe that there has been a slight increment on serious accidents, being **2018 the year whith most serious accidents in 2009**, at the cost of slight accidents. This means that while there is a tendency of fatal accidents to decrease since 2009, it is also true **that the number of fatal accidents has been more or less stable during the last 3 years**.
 
 ## Accidents distribution by time
+
+Since `casualties` data frame does not have information about the casualties' job, we might need to use a proxy to answer the research question that has arisen before after seeing that most accidents take place on Fridays. A possible tentative answer could be provided by combining the time and day of the week. 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, fig-fullwidth, fig.fullwidth = TRUE, fig.cap = "Number of accidents by weekday and time."}
 accidents_time <- accidents2018 %>% 
@@ -196,12 +221,14 @@ formattable(accidents_time,
 
 ```
 
-As can easily be seen in the table above, most accidents take place during peak hours in weekdays and there is a tendency to increase the closer it gets to Friday evening, which is probably the busiest time and when people is more tired. 
+As can easily be seen in the table above, **most accidents take place during peak hours in weekdays and there is a tendency to increase the closer it gets to Friday evening**, which is probably the busiest time and when people is more tired. The fact that these rush hours is where most commute take place, makes me think that we might reject the hypothesis that professional drivers are more prone to accident, although more research should be required.
 
-    ## Accidents' spatial distribution
+## Accidents' spatial distribution
 
 Let's see how accidents are spatially distributed to see if we can identify hot areas. 
 The following interactive map displays accidents by type, displaying slight accidents, as they the most significant ones.
+
+
 
 ```{r Accidents by location and type, echo=FALSE, fig.cap = "Accidents by location and type."}
 
@@ -232,9 +259,17 @@ leaflet(options = leafletOptions(minZoom = 0, maxZoom = 14)) %>%
 
 ```
 
-Having the coordinates of every accident, we could also analyse them at a closer scale. As suggested in the [Active Travel Podcast Pilot: Media reporting of Active Travel](https://pod.link/1515440253/episode/NWVjN2VhZGVjOTc4YjkxYjViYWNjYzFk), it could be interesting to view a picture of the places where accidents took place in order to identify possible correlation with their physical features and the number of accidents and casualties.
-As a protoype, the following code gets the picture from mapillary of the top-5 location whith more casualties, which could be the foundations of a larger research based on machine learning.
+```{marginfigure}
+This map arises many questions such as *What's the impact of commuting in accidents?* or *Are roads in less opulated areas poorly maintained?*
+```
+Surprisingly for me, I expected more populated areas to be more prone to accidents, but that is not always the case. In fact, I expected London to be the place where most accidents happened, but it is not the case (although the number of accidents around the city is important and makes me think that most of those accidents are due to commutting). Seeing some areas with less density with a significant number of accidents makes me wonder if that is related to the quality of the roads or if there are big industrial areas that attract more transportation[^extra-datasets].
 
+[^extra-datasets]: In order to answer those questions extra datasets would be required. As an example, it would be interesting to cross accidents' location with the investment and maintenance of the roads and/or their physical features (eg. from OpenStreetMap).
+
+On the other hand, having the coordinates of every accident, we could also analyse them at a closer scale. As suggested in the [Active Travel Podcast Pilot: Media reporting of Active Travel](https://pod.link/1515440253/episode/NWVjN2VhZGVjOTc4YjkxYjViYWNjYzFk), it could be interesting to view a picture of the places where accidents took place in order to identify possible correlation with their physical features and the number of accidents and casualties.
+As a protoype, the following code gets the picture from [Mapillary](https://mapillary.com/)[^mapillary] of the top-5 location whith more casualties, which could be the foundations of a larger research based on machine learning.
+
+[^mapillary]: Mapillary is a service that provides crowdsorced street level imaginery, in a Google StreetView fashion. Google services could have also been used, but they require a fee to obtain an API key, and that was out of the scope of this example.
 
 ```{r}
 # Dataframe preparation.
@@ -261,7 +296,9 @@ for (i in accidents_by_casualties$id) {
 
 
 
-# Casualties
+# Casualties 2018
+
+STATS19 provides a second data set describing the casualties involved in every accident described in the `accidents` dataset we have just explored before.
 
 ## Initial exploration
 
@@ -282,7 +319,7 @@ The table above shows that overall we do not have significant missing data in an
 datatable(inspect_cat(casualties2018, show_plot = TRUE))
 ```
 
-From the tables above, **we can profile the average casualty in 2018 as a male between 26-35 years old, driver of a car that has an accident in urban areas and gets slightly injured after the accident.** Let's further explore the casualties' demographics.
+From the tables above, **we can profile the average casualty in 2018 as a male between 26-35 years old, driver of a car that has an accident in urban areas who got slightly injured after the accident.** Let's further explore the casualties' demographics.
 
 ## Casualties' demographics
 
