@@ -1,0 +1,348 @@
+---
+title: "STATS19 Data exploration"
+subtitle: "A first-contact with Stats19 data set mock report"
+author: "Carlos Cámara-Menoyo"
+date: "`r Sys.Date()`"
+output:
+  tufte::tufte_html:
+    tufte_variant: "envisioned"
+    highlight: pygments
+    toc: true 
+    number_sections: true
+  tufte::tufte_handout:
+    citation_package: natbib
+    latex_engine: xelatex
+  tufte::tufte_book:
+    citation_package: natbib
+    latex_engine: xelatex
+  # bibliography: skeleton.bib
+  # link-citations: yes
+---
+
+This is a mock report exploring data from UK Department for Transport's [STATS19](https://data.gov.uk/dataset/cb7ae6f0-4be6-4935-9277-47e5ce24a11f/road-safety-data) provided from [STATS19's R package](https://docs.ropensci.org/stats19/)[^stats19] made by someone who has never worked with that kind of dataset before. STATS19 provides three types of datasets: `accidents`, `vehicles` and `casualties`. 
+
+
+```{r setup, include=FALSE}
+source("init.R")
+
+accidents2018 <- read.csv("data/raw/accident2018.csv") %>% 
+  select(-X, -starts_with("location_")) %>% 
+  mutate(datetime = as.Date(datetime))
+
+vehicles2018 <- read.csv("data/raw/vehicles2018.csv") %>% 
+  select(-X)
+
+summary_accidents <- read.csv("data/interim/summary_accidents.csv") %>% 
+  select(-X) %>% 
+  filter(year >= "2009")
+
+total_accidents2018 <- summary_accidents %>% 
+  filter(year == 2018) %>% 
+  group_by(accident_severity) %>% 
+  tally() 
+
+total_acc18_fatal <- total_accidents2018$n[total_accidents2018$accident_severity == "Fatal"]
+total_acc18_serious <- total_accidents2018$n[total_accidents2018$accident_severity == "Serious"]
+total_acc18_slight <- total_accidents2018$n[total_accidents2018$accident_severity == "Slight"]
+total_acc18 <- total_acc18_fatal + total_acc18_serious + total_acc18_slight
+
+
+casualties2018 <- read.csv(file = "data/raw/casualties2018.csv") %>% 
+  select(-X)
+
+summary_casualties <- read.csv("data/interim/summary_casualties.csv") %>% 
+  select(-X)
+
+# Variables.
+color_total <- "#1F77B4"
+color_serious <- "#FF7F0E"
+color_slight <- "#2C9F2C"
+color_fatal <- "#FF637D"
+color_fatal2 <- "rgba(214, 39, 40, 0.2)"
+
+```
+
+# Accidents 2018
+
+## Initial exploration 
+
+Let's see how many observations do we have as well as the variables' number and types.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+glimpse(accidents2018)
+```
+
+```{r echo=FALSE, fig.cap="Initial exploration of accidents' data frame"}
+skim(accidents2018)
+```
+
+The table above shows that overall we do not have significant missing data in any of the 16 variables as well as some basic statistics of the (few) numerical variables. Now let's see the mode for every variable.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Number of values and modes for every variable"}
+datatable(inspect_cat(accidents2018, show_plot = TRUE))
+```
+
+The tables above pose interesting (basic) research questions to be explored. As an example, seeing that the day of the week were most accidents take place is Friday, I would like to know if most accidents happen during weekdays or weekend. We could use that data as a proxy to infer if professional drivers are more or less involved in accidents than amateurs, especially if we combine that with the hour of the day.
+
+Surprisingly, **most accidents take place on dry conditions with sunny days and good visibility**, so, apparently, weather does not have such as big impact as I might have guessed on the first sight, although verifying it would require further analysis.
+
+```{marginfigure}
+Research quesion here: *Are weather and visibility conditions an important factor in  accidents?*
+```
+
+## Accidents' evolution over time
+
+There have been a **total of `r format(as.numeric(total_acc18), big.mark=",")` accidents in 2018**, out of which a **`r round(total_acc18_fatal/total_acc18*100)`% were fatal**, **`r round(total_acc18_serious/total_acc18*100)`% were  serious**, and **`r round(total_acc18_slight/total_acc18*100)`% were slight**. However, let's see how these figures have been evolved through time and if there has been an increase or decrease on the number of accidents.
+
+
+```{r echo=FALSE, fig.margin=TRUE, fig.cap="Histogram from 2004 to 2018. Probably 2004 and 2009 introduced some changes in how data was gathered or the consideration of what an accident was."}
+summary_accidents_total <- read.csv("data/interim/summary_accidents.csv") %>% 
+  select(-X)
+
+ggplot(data = summary_accidents_total , aes(x = year)) +
+  geom_bar(aes(y = n, fill = accident_severity), position = "stack", stat = "identity") +
+  labs(title = "Number of accidents from 2004 and 2018",
+       caption = "Source: STATS19",
+       x = "Year", y = "Number of accidents",
+       fill = "Severity") +
+  scale_fill_manual("Severity", values = c("Fatal" = color_fatal, 
+                                           "Serious" = color_serious, 
+                                           "Slight" = color_slight)) +
+  # scale_fill_brewer(type = "div", palette = "Paired") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() 
+```
+
+```{r echo=FALSE}
+plot <- ggplot(data = summary_accidents, aes(x = year)) +
+  geom_bar(aes(y = n, fill = accident_severity), position = "stack", stat = "identity") +
+  labs(title = "Number of accidents by type and year",
+       caption = "Source: STATS19",
+       x = "Year", y = "Number of accidents",
+       fill = "Severity") +
+  scale_fill_manual("Severity", values = c("Fatal" = color_fatal, 
+                                           "Serious" = color_serious, 
+                                           "Slight" = color_slight)) +
+  # scale_fill_brewer(type = "div", palette = "Paired") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() 
+
+ggplotly(plot)
+```
+
+
+Wile the number of accidents in UK is high, **we can see an overall tendency in number of accidents to decrease over time**, but can we observe other patterns?
+
+
+```{r echo=FALSE, fig.cap="Number of accidents by time and type and their evolution compared to the previous year"}
+summary_accidents_wide <- summary_accidents %>% 
+  pivot_wider(names_from = accident_severity, values_from = n) %>% 
+  mutate(total_accidents = Fatal  + Serious + Slight) %>% 
+  mutate(rownum = row_number()) %>% 
+  mutate(fatal_variation = ifelse(rownum == 1, NA, 
+                                (Fatal - dplyr::lag(Fatal))/Fatal)) %>% 
+  mutate(serious_variation = ifelse(rownum == 1, NA, 
+                                (Serious - dplyr::lag(Serious))/Serious)) %>% 
+  mutate(slight_variation = ifelse(rownum == 1, NA, 
+                                (Slight - dplyr::lag(Slight))/Slight)) %>% 
+  mutate(total_variation = ifelse(rownum == 1, NA, 
+                                (total_accidents - dplyr::lag(total_accidents))/total_accidents)) %>% 
+  select(year, Fatal, fatal_variation, Serious, serious_variation, 
+         Slight, slight_variation, total_accidents, total_variation) %>% 
+  rename(`Fatal \n variation` = fatal_variation,
+         `Serious \n variation` = serious_variation,
+         `Slight \n variation` = slight_variation,
+         Total = total_accidents,
+         `Total variation` = total_variation)
+
+formattable(summary_accidents_wide, 
+            align = c("l", rep("r", NCOL(summary_accidents_wide) - 1)),
+            list(Fatal = color_tile(adjustcolor(color_fatal, alpha.f = 0.1), color_fatal),
+             Serious = color_tile(adjustcolor(color_serious, alpha.f = 0.1), color_serious),
+             Slight = color_tile(adjustcolor(color_slight, alpha.f = 0.1), color_slight),
+             Total = color_tile(adjustcolor(color_total, alpha.f = 0.1), color_total),
+             `Fatal \n variation` = percent,
+             `Serious \n variation` = percent,
+             `Slight \n variation` = percent,
+             `Total variation` = percent
+            ))
+```
+
+
+
+
+As can be seen in the table above, total number of accidents has been decreasing over time and **2018 is the year with less total accidents since 2009**. This might seem good news (with plenty of room for improvement, provided that the accidents figures are still high), but we can also observe that there has been a slight increment on serious accidents, being **2018 the year whith most serious accidents in 2009**, at the cost of slight accidents. This means that while there is a tendency of fatal accidents to decrease since 2009, it is also true **that the number of fatal accidents has been more or less stable during the last 3 years**.
+
+## Accidents distribution by time
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig-fullwidth, fig.fullwidth = TRUE, fig.cap = "Number of accidents by weekday and time."}
+accidents_time <- accidents2018 %>% 
+  select(day_of_week, time) %>% 
+  mutate(time2 = hm(as.character(time))) %>% 
+  mutate(hour = hour(time2)) %>% 
+  filter(!is.na(hour)) %>% 
+  group_by(day_of_week, hour) %>% 
+  tally() %>% 
+  pivot_wider(names_from = hour, values_from = n) %>% 
+  arrange(factor(day_of_week, levels = c("Sunday", "Monday", "Tuesday", 
+                                       "Wednesday", "Thursday", "Friday",
+                                       "Saturday"))) %>% 
+  rename(`Day of the Week` = day_of_week)
+
+formattable(accidents_time, 
+            align = c("l", rep("r", NCOL(accidents_time) - 1)),
+            list(area(col = 2:25) ~ color_tile(
+              adjustcolor(color_total, alpha.f = 0.1), color_total)))
+
+```
+
+As can easily be seen in the table above, most accidents take place during peak hours in weekdays and there is a tendency to increase the closer it gets to Friday evening, which is probably the busiest time and when people is more tired. 
+
+    ## Accidents' spatial distribution
+
+Let's see how accidents are spatially distributed to see if we can identify hot areas. 
+The following interactive map displays accidents by type, displaying slight accidents, as they the most significant ones.
+
+```{r Accidents by location and type, echo=FALSE, fig.cap = "Accidents by location and type."}
+
+spdf <- accidents2018 %>%
+  select(latitude, longitude, accident_severity) %>% 
+  mutate(accident_severity = as.factor(accident_severity)) %>% 
+  filter(!is.na(latitude))
+
+leaflet(options = leafletOptions(minZoom = 0, maxZoom = 14)) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addHeatmap(data = filter(spdf, accident_severity == "Fatal"), group = "Fatal Accidents",
+             lng = ~longitude, lat = ~latitude,
+             blur = 20, max = 0.4, radius = 10 ) %>%
+  addHeatmap(data = filter(spdf, accident_severity == "Serious"), group = "Serious Accidents",
+           lng = ~longitude, lat = ~latitude,
+           blur = 20, max = 0.4, radius = 10 ) %>%
+  addHeatmap(data = filter(spdf, accident_severity == "Slight"), group = "Slight Accidents",
+           lng = ~longitude, lat = ~latitude,
+           blur = 20, max = 0.4, radius = 10 ) %>%
+  addMiniMap(tiles = providers$CartoDB.Positron) %>% 
+  addLayersControl(
+    # baseGroups = c("OSM (default)", "Toner", "Toner Lite"),
+    overlayGroups = c("Fatal Accidents", "Serious Accidents", "Slight Accidents"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) %>% 
+  hideGroup(c("Serious Accidents", "Fatal Accidents"))
+  # addControl("Accidents by location and type", position = "topleft", className="map-title")
+
+```
+
+Having the coordinates of every accident, we could also analyse them at a closer scale. As suggested in the [Active Travel Podcast Pilot: Media reporting of Active Travel](https://pod.link/1515440253/episode/NWVjN2VhZGVjOTc4YjkxYjViYWNjYzFk), it could be interesting to view a picture of the places where accidents took place in order to identify possible correlation with their physical features and the number of accidents and casualties.
+As a protoype, the following code gets the picture from mapillary of the top-5 location whith more casualties, which could be the foundations of a larger research based on machine learning.
+
+
+```{r}
+# Dataframe preparation.
+accidents_by_casualties <- accidents2018 %>% 
+  select(longitude, latitude, number_of_casualties) %>% 
+  arrange(desc(number_of_casualties)) %>% 
+  mutate(id = row_number()) %>% 
+  relocate(id) %>% 
+  head(5)
+
+# Download images from mapillary.
+for (i in accidents_by_casualties$id) {
+  print(paste0("Displaying mapillary image close to lon=",
+               accidents_by_casualties$longitude[i], " and lat=",
+               accidents_by_casualties$latitude[i]))
+  
+  img <- images(closeto =c (accidents_by_casualties$longitude[i], 
+                   accidents_by_casualties$latitude[i]), radius=1000, 
+                page=1, per_page=1, print=FALSE)$img_key
+  get_img(img_key=img, size = "l")
+}
+
+```
+
+
+
+# Casualties
+
+## Initial exploration
+
+Let's see how many observations do we have as well as the variables' number and types.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+glimpse(casualties2018)
+```
+
+
+```{r echo=FALSE}
+skim(casualties2018)
+```
+
+The table above shows that overall we do not have significant missing data in any of the 16 variables as well as some basic statistics of the (few) numerical variables. Now let's see the mode for every variable.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+datatable(inspect_cat(casualties2018, show_plot = TRUE))
+```
+
+From the tables above, **we can profile the average casualty in 2018 as a male between 26-35 years old, driver of a car that has an accident in urban areas and gets slightly injured after the accident.** Let's further explore the casualties' demographics.
+
+## Casualties' demographics
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Histogram of casualties' distribution by age and sex."}
+casualties_distribution <- casualties2018 %>% 
+  select(age_of_casualty, sex_of_casualty, casualty_severity) %>% 
+  filter(sex_of_casualty != "Data missing or out of range")
+
+# Change histogram plot fill colors by groups
+p <- ggplot(casualties_distribution, 
+       aes(x = age_of_casualty, fill = sex_of_casualty, color = sex_of_casualty)) +
+  geom_histogram(position="dodge", alpha=0.4) +
+  labs(title = "Casualties' distribution by age and sex",
+       subtitle = "Source: STATS19. Vertical axis have different scales",
+       caption = "Source: STATS19",
+       x = "Age", y = "Count",
+       fill = "Gender*", 
+       color = "Gender*") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+At this level of detail, we cannot see notable differences between genders. Both male and female seem to follow the same age distribution, although admittedly, females absolute numbers are notably smaller in all the ages.
+
+Let's see if both genders follow same distribution according to accident severity.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width = 10, fig.fullwidth = TRUE, fig.cap="Histogram of casualties' distribution by age and sex, grouped by accident severity."}
+# Change histogram plot fill colors by groups
+p <- ggplot(casualties_distribution, 
+       aes(x = age_of_casualty, fill = sex_of_casualty, color = sex_of_casualty)) +
+  geom_histogram(position="dodge", alpha = 0.4) +
+  labs(title = "Casualties' distribution by age and sex, grouped by accident severity",
+       subtitle = "Source: STATS19. Vertical axis have different scales",
+       caption = "Source: STATS19",
+       x = "Age", y = "Count",
+       fill = "Gender*", 
+       color = "Gender*") +
+  # scale_fill_manual("Severity", values = c("Fatal" = color_fatal, 
+  #                                          "Serious" = color_serious, 
+  #                                          "Slight" = color_slight)) +
+  scale_y_continuous(labels = comma) +
+  facet_grid(casualty_severity ~ ., scales = "free") +
+  theme_minimal()
+
+
+ggplotly(p)
+```
+
+As can be seen in the plots above, **the number of young females involved in fatal and severe accidents are much lesser than those to their male equals.**  
+
+# Future actions and research
+
+This is the end (for now) of this mock report aimed to know about the STATS19 dataset as well as some new coding. There is still lots of data to be explored that, in turn, will lead to research questions, especially if we combine the different datasets together (thankfully they have an `accident_index` that will make it possible).
+
+We have seen many unanswered questions in this document, and others that have not been directly mentioned, such as the role of women involved in accidents are usually drivers or not. 
+
+Another thing I would love to do is to join vehicles and accidents to see if accidents' severity follows a similar distribution  according to the type of vehicles involved. My hypothesis here is that fatal accidents involving cars will be much higher than those involving bicicles, which I expect them to be quite marginal.
+
+Also, I would love to study the impact of the physical conditions of the highways and environment. Although `accidents` dataset has some information about it, I don't think it is enough, so, as an OpenStreetMap contributor and advocate, I would love to combine both datasets.
+
+[^stats19]: Lovelace, R., Morgan, M., Hama, L., Padgham, M., Ranzolin, D., & Sparks, A. (2019). stats 19: A package for working with open road crash data. The Journal of Open Source Software, 4(33), 1181. https://doi.org/10.21105/joss.01181
