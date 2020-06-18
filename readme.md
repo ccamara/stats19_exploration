@@ -7,4 +7,10 @@ This repo contains a mock report exploring data from UK Department for Transport
 3. to learn some new skills that I have never used before[^new-things],
 4. to showcase what I am capable of and increase my chances to get hired.
 
-Report can be found here: https://ccamara.github.io/stats19_exploration/
+The report can be found here: https://ccamara.github.io/stats19_exploration/
+
+**Disclaimer:** This report has been made in 12 hours by someone who had never worked with that kind of dataset before. As a result, it has to be considered as a draft and it might contain mistakes in writing and hasty conclusions.
+
+[^datasets]: STATS19 provides three types of datasets: `accidents`, `casualties` and `vehicles`, although this report only analyses (for now) the first two due to time constraints.
+
+[^new-things]: As an example, I wanted to learn how to combine tables and visuals to make tables easier to read, experiment with `plotly` interactive charts instead of using my beloved `ggplot` and use mapillary API to get images from the roads where accidents took place.
