@@ -1,0 +1,182 @@
+---
+title: "Road Safety data Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: flatly
+    orientation: rows
+    social: menu    
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+source("init.R")
+
+accidents2018 <- read.csv("data/raw/accident2018") %>% 
+  select(-X, -starts_with("location_"))
+
+total_accidents2018 <- accidents2018 %>% 
+  group_by(accident_severity) %>% 
+  tally() 
+
+total_acc18_fatal <- total_accidents2018$n[total_accidents2018$accident_severity == "Fatal"]
+total_acc18_serious <- total_accidents2018$n[total_accidents2018$accident_severity == "Serious"]
+total_acc18_slight <- total_accidents2018$n[total_accidents2018$accident_severity == "Slight"]
+total_acc18 <- total_acc18_fatal + total_acc18_serious + total_acc18_slight
+
+# Variables.
+color_total <- "#1F77B4"
+color_serious <- "#FF7F0E"
+color_slight <- "#2C9F2C"
+color_fatal <- "rgba(214, 39, 40, 1)"
+
+```
+
+menu item 1
+=====================================  
+Row
+------------------
+### Total {.value-box .no-mobile}
+
+```{r}
+
+valueBox(value = format(total_acc18, big.mark = ","),
+         caption = paste0("Total recorded accidents in UK during 2018"), 
+   icon = "fa fa-car-crash", 
+   color = color_total)
+```
+
+### Fatal {.value-box .no-mobile}
+
+```{r}
+
+valueBox(value = format(total_acc18_fatal, big.mark = ","),
+         caption = paste0("Total fatal accidents, which account to <b>",
+                          round(total_acc18_fatal/total_acc18*100,  
+                          digits = 2),
+                    "% of total accidents.</b> <small>Year: 2018</small>"), 
+   icon = "fab fa-skull-crossbones", 
+   color = color_fatal)
+```
+
+### Serious{.value-box .no-mobile
+
+```{r}
+
+valueBox(value = format(total_acc18_serious, big.mark = ","),
+         caption = paste0("Total serious accidents, which account to <b>",
+                          round(total_acc18_serious/total_acc18*100,  
+                          digits = 2),
+                    "% of total accidents.</b> <small>Year: 2018</small>"), 
+   icon = "fas fa-ambulance", 
+   color = color_serious)
+```
+
+### Slight {.value-box .no-mobile}
+
+```{r}
+
+valueBox(value = format(total_acc18_slight, big.mark = ","),
+         caption = paste0("Total slight accidents, which account to <b>",
+                          round(total_acc18_slight/total_acc18*100,  
+                          digits = 2),
+                    "% of total accidents.</b> <small>Year: 2018</small>"), 
+   icon = "fas fa-user-injured", 
+   color = color_slight)
+```
+
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Accidents by location and type 
+
+```{r}
+summary_severity = accidents2018 %>% 
+  select(accident_severity) %>%
+  group_by(accident_severity) %>%
+  summarise(Total = n()) %>%
+  mutate(freq = Total/sum(Total)*100) %>%
+  arrange(desc(Total))
+
+ggplot(summary_severity, aes(x = reorder(accident_severity, Total), 
+                                     y = Total)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Total cases by accident severity") +
+  labs(x = "Accident severity", y = "Total cases") +
+  coord_flip() +
+  geom_text(aes(label = Total), size = 3, hjust = -.5, vjust = .5, position = "stack") +
+  scale_fill_brewer(type = "seq", palette = "Reds") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        panel.grid.major.y = element_blank()) +
+  guides(fill = guide_legend(title.position = "left", nrow=1, byrow=TRUE))
+```
+
+```{r}
+ggplot(data = accidents2018, aes(x = urban_or_rural_area, fill = accident_severity)) +
+  geom_bar()
+
+ggplotly()
+```
+
+URban and rural areas follow the same patterns in severity type. 
+
+
+```{r}
+
+spdf <- accidents2018 %>%
+  select(latitude, longitude, accident_severity) %>% 
+  mutate(accident_severity = as.factor(accident_severity)) %>% 
+  filter(!is.na(latitude))
+
+leaflet(options = leafletOptions(minZoom = 0, maxZoom = 14)) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addHeatmap(data = filter(spdf, accident_severity == "Fatal"), group = "Fatal Accidents",
+             lng = ~longitude, lat = ~latitude,
+             blur = 20, max = 0.4, radius = 10 ) %>%
+  addHeatmap(data = filter(spdf, accident_severity == "Serious"), group = "Serious Accidents",
+           lng = ~longitude, lat = ~latitude,
+           blur = 20, max = 0.4, radius = 10 ) %>%
+  addHeatmap(data = filter(spdf, accident_severity == "Slight"), group = "Slight Accidents",
+           lng = ~longitude, lat = ~latitude,
+           blur = 20, max = 0.4, radius = 10 ) %>%
+  addMiniMap(tiles = providers$CartoDB.Positron) %>% 
+  addLayersControl(
+    # baseGroups = c("OSM (default)", "Toner", "Toner Lite"),
+    overlayGroups = c("Fatal Accidents", "Serious Accidents", "Slight Accidents"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) %>% 
+  hideGroup(c("Serious Accidents", "Slight Accidents")) %>% 
+  addControl("Accidents by location and type", position = "topleft", className="map-title")
+
+```
+
+
+
+### Explore the data
+
+```{r}
+datatable(head(accidents2018))
+```
+
+
+About
+=====================================  
+
+#### About this dashboard
+
+This dashboard is a proof of concept and fast-prototype to explore STATS-19 data and just for testing purposes and exploring posibilities. 
+
+* Source code: https://github.com/ccamara/road_safety_data/
+* Author: [Carlos Cámara](https://carloscamara.es)
+* Licence: MIT
+
+It relies in the following packages:
+
+Iannone, R., Allaire, J., & Borges, B. (2018). flexdashboard: R markdown format for flexible dashboards [Manual]. https://CRAN.R-project.org/package=flexdashboard
+
+Lovelace, R., Morgan, M., Hama, L., Padgham, M., Ranzolin, D., & Sparks, A. (2019). stats 19: A package for working with open road crash data. The Journal of Open Source Software, 4(33), 1181. https://doi.org/10.21105/joss.01181
+
+Sievert, C. (2020). Interactive web-based data visualization with r, plotly, and shiny. Chapman and Hall/CRC. https://plotly-r.com
+
+Wickham, H., François, R., Henry, L., & Müller, K. (2020). dplyr: A grammar of data manipulation [Manual]. https://CRAN.R-project.org/package=dplyr
