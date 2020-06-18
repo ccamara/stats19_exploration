@@ -17,7 +17,8 @@ library(stats19)
 library(tidyverse)
 library(ztable)
 
-  files <- list.files(path = "R", pattern = "*.R", full.names = TRUE, recursive = FALSE)
-for (i in files) {
-  source(i)
-}
+# files <- list.files(path = "R", pattern = "*.R", full.names = TRUE, recursive = FALSE)
+# 
+# for (i in files) {
+#   source(i)
+# }
